@@ -25,7 +25,7 @@
 extern void AddLog(uint32_t loglevel, PGM_P formatP, ...);
 enum LoggingLevels {LOG_LEVEL_NONE, LOG_LEVEL_ERROR, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG, LOG_LEVEL_DEBUG_MORE};
 
-//#define TASMOTAMODBUSDEBUG
+#define TASMOTAMODBUSDEBUG
 
 #define TASMOTA_MODBUS_TX_ENABLE        // Use local Tx enable on write buffer
 
@@ -213,11 +213,14 @@ uint8_t TasmotaModbus::ReceiveBuffer(uint8_t *buffer, uint8_t register_count, ui
   while ((mb_len < byte_count + header_length + 2) && (millis() < timeout)) {
     if (available()) {
       uint8_t data = (uint8_t)read();
-      if (!mb_len) {               // Skip leading data as provided by hardware serial
+      {
+      /*
+      if (mb_len == 0) {               // Skip leading data as provided by hardware serial
         if (mb_address == data) {
           buffer[mb_len++] = data;
         }
       } else {
+        */
         buffer[mb_len++] = data;
         if (3 == mb_len) {
           // If functioncode is 5,6,15 or 16 the header length is 4 instead of 3

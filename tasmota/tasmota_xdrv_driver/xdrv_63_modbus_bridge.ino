@@ -55,6 +55,8 @@
 #define D_CMND_MODBUS_SEND "Send"
 #define D_CMND_MODBUS_SETBAUDRATE "Baudrate"
 #define D_CMND_MODBUS_SETSERIALCONFIG "SerialConfig"
+#define D_CMND_MODBUS_MONITOR_START "MonitorStart"
+#define D_CMND_MODBUS_MONITOR_STOP "MonitorStop"
 
 #define D_JSON_MODBUS_RECEIVED "ModbusReceived"
 #define D_JSON_MODBUS_DEVICE_ADDRESS "DeviceAddress"
@@ -68,10 +70,15 @@
 
 #ifndef USE_MODBUS_BRIDGE_TCP
 const char kModbusBridgeCommands[] PROGMEM = "Modbus|" // Prefix
-    D_CMND_MODBUS_SEND "|" D_CMND_MODBUS_SETBAUDRATE "|" D_CMND_MODBUS_SETSERIALCONFIG;
+    D_CMND_MODBUS_SEND "|" 
+    D_CMND_MODBUS_SETBAUDRATE "|" 
+    D_CMND_MODBUS_SETSERIALCONFIG "|" 
+    D_CMND_MODBUS_MONITOR_START "|" 
+    D_CMND_MODBUS_MONITOR_STOP;
 
 void (*const ModbusBridgeCommand[])(void) PROGMEM = {
-    &CmndModbusBridgeSend, &CmndModbusBridgeSetBaudrate, &CmndModbusBridgeSetConfig};
+    &CmndModbusBridgeSend, &CmndModbusBridgeSetBaudrate, &CmndModbusBridgeSetConfig, 
+    &CmndModbusBridgeMonitorStart, &CmndModbusBridgeMonitorStop};
 #endif
 
 #ifdef USE_MODBUS_BRIDGE_TCP
@@ -84,11 +91,20 @@ void (*const ModbusBridgeCommand[])(void) PROGMEM = {
 #define D_CMND_MODBUS_TCP_MQTT "TCPMqtt"
 
 const char kModbusBridgeCommands[] PROGMEM = "Modbus|" // Prefix
-    D_CMND_MODBUS_TCP_START "|" D_CMND_MODBUS_TCP_CONNECT "|" D_CMND_MODBUS_TCP_MQTT "|" D_CMND_MODBUS_SEND "|" D_CMND_MODBUS_SETBAUDRATE "|" D_CMND_MODBUS_SETSERIALCONFIG;
+    D_CMND_MODBUS_TCP_START "|" 
+    D_CMND_MODBUS_TCP_CONNECT "|" 
+    D_CMND_MODBUS_TCP_MQTT "|" 
+    D_CMND_MODBUS_SEND "|" 
+    D_CMND_MODBUS_SETBAUDRATE "|" 
+    D_CMND_MODBUS_SETSERIALCONFIG "|"
+    D_CMND_MODBUS_MONITOR_START "|" 
+    D_CMND_MODBUS_MONITOR_STOP;
+
 
 void (*const ModbusBridgeCommand[])(void) PROGMEM = {
     &CmndModbusTCPStart, &CmndModbusTCPConnect, &CmndModbusTCPMqtt,
-    &CmndModbusBridgeSend, &CmndModbusBridgeSetBaudrate, &CmndModbusBridgeSetConfig};
+    &CmndModbusBridgeSend, &CmndModbusBridgeSetBaudrate, &CmndModbusBridgeSetConfig,
+    &CmndModbusBridgeMonitorStart, &CmndModbusBridgeMonitorStop};
 
 struct ModbusBridgeTCP
 {
@@ -171,6 +187,7 @@ struct ModbusBridge
   uint8_t count = 0;            // Number of values to read / write
   bool raw = false;
   uint8_t *buffer = nullptr;    // Buffer for storing read / write data
+  bool modbusmonitor = false;   // Monitor for any modbus data and send to MQTT
   bool enabled = false;
 };
 
@@ -337,7 +354,13 @@ void ModbusBridgeHandle(void)
         return;
       }
 #endif
-      errorcode = ModbusBridgeError::nodataexpected;
+      if (modbusBridge.modbusmonitor) 
+      {
+        modbusBridge.deviceAddress = (uint8_t)modbusBridge.buffer[0];
+        modbusBridge.functionCode = (ModbusBridgeFunctionCode)(uint8_t)modbusBridge.buffer[1];
+        modbusBridge.type = ModbusBridgeType::mb_raw;
+      }
+      else errorcode = ModbusBridgeError::nodataexpected;
     }
     else if (modbusBridge.deviceAddress != (uint8_t)modbusBridge.buffer[0])
       errorcode = ModbusBridgeError::wrongdeviceaddress;
@@ -1034,6 +1057,18 @@ void CmndModbusBridgeSetBaudrate(void)
 {
   ModbusBridgeSetBaudrate(XdrvMailbox.payload);
   ResponseCmndNumber(Settings->modbus_sbaudrate * 300);
+}
+
+void CmndModbusBridgeMonitorStart(void)
+{
+  modbusBridge.modbusmonitor = true;
+  ResponseCmndDone();
+}
+
+void CmndModbusBridgeMonitorStop(void)
+{
+  modbusBridge.modbusmonitor = false;
+  ResponseCmndDone();
 }
 
 void CmndModbusBridgeSetConfig(void)
