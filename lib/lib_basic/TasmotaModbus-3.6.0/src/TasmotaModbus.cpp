@@ -70,6 +70,18 @@ int TasmotaModbus::Begin(long speed, uint32_t config)
       digitalWrite(mb_tx_enable_pin, LOW);
     }
 #endif  // TASMOTA_MODBUS_TX_ENABLE
+    int start_bits = 1;
+    int data_bits = 5 + ((config >> 2) & 3);
+    int parity_bits = (config >> 1) & 1; // parity present
+    int stop_bits = 1 + ((config >> 5) & 1);
+    int symbol_bits = start_bits + data_bits + parity_bits + stop_bits;
+    long symbol_time_us = symbol_bits*1000*1000 / speed;
+    end_delay_us = symbol_time_us * 3.5;
+#ifdef TASMOTAMODBUSDEBUG
+    AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("MBS: symbol_bits = %d"), symbol_bits);
+    AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("MBS: symbol_time_us = %ld"), symbol_time_us);
+    AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("MBS: end_delay_us = %ld"), end_delay_us);
+#endif
   }
   return result;
 }
@@ -207,10 +219,10 @@ bool TasmotaModbus::ReceiveReady()
 uint8_t TasmotaModbus::ReceiveBuffer(uint8_t *buffer, uint8_t register_count, uint16_t byte_count)
 {
   mb_len = 0;
-  uint32_t timeout = millis() + 10;
+  uint32_t timeout = micros() + end_delay_us;
   uint8_t header_length = 3;
   if (byte_count == 0) byte_count = (register_count * 2);
-  while ((mb_len < byte_count + header_length + 2) && (millis() < timeout)) {
+  while ((mb_len < byte_count + header_length + 2) && (micros() < timeout)) {
     if (available()) {
       uint8_t data = (uint8_t)read();
       {
@@ -228,7 +240,7 @@ uint8_t TasmotaModbus::ReceiveBuffer(uint8_t *buffer, uint8_t register_count, ui
         }
       }
 
-      timeout = millis() + 20;
+      timeout = micros() + end_delay_us;
 
     }
   }

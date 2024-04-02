@@ -69,6 +69,7 @@ class TasmotaModbus : public TasmotaSerial {
     int mb_tx_enable_pin;
     uint8_t mb_address;
     uint8_t mb_len;
+    long end_delay_us;
 };
 
 #endif  // TasmotaModbus_h
