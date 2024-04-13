@@ -216,13 +216,33 @@ bool TasmotaModbus::ReceiveReady()
   return (available() > 4);
 }
 
+uint16_t TasmotaModbus::CheckCRC(uint8_t *frame, uint8_t num){
+  if (num < 3){
+    return false;
+  }
+
+  uint16_t crc = CalculateCRC(frame, num - 2);
+  uint8_t crc1 = (crc >> 8) & 0xff;
+  uint8_t crc2 = crc & 0xff;
+
+  //AddLog(LOG_LEVEL_DEBUG_MORE, PSTR("MBS: CRC %x %d =? %d, %d =? %d"), crc, frame[num-2], crc1, frame[num-1], crc2 );
+
+  if ((frame[num-2] == crc2) && (frame[num-1] == crc1)){
+    return true;
+  }
+
+  return false;
+}
+
+
+
 uint8_t TasmotaModbus::ReceiveBuffer(uint8_t *buffer, uint8_t register_count, uint16_t byte_count)
 {
   mb_len = 0;
   uint32_t timeout = micros() + end_delay_us;
   uint8_t header_length = 3;
   if (byte_count == 0) byte_count = (register_count * 2);
-  while ((mb_len < byte_count + header_length + 2) && (micros() < timeout)) {
+  while ((mb_len < byte_count + header_length + 2) && (micros() < timeout) && !CheckCRC(buffer, mb_len)) {
     if (available()) {
       uint8_t data = (uint8_t)read();
       {
